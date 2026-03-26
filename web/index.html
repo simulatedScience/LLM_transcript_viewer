@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local Transcript Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css"
+    />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="control-panel">
+        <div class="brand-block">
+          <h1>Local Transcript Viewer</h1>
+        </div>
+
+        <label>
+          Search
+          <input id="searchInput" type="text" placeholder="Search chats" />
+        </label>
+
+        <label>
+          Sort chats
+          <select id="sortPreset">
+            <option value="last_ts:desc">Newest activity first</option>
+            <option value="last_ts:asc">Oldest activity first</option>
+            <option value="first_ts:desc">Newest start date first</option>
+            <option value="first_ts:asc">Oldest start date first</option>
+            <option value="title:asc">Title A to Z</option>
+            <option value="title:desc">Title Z to A</option>
+          </select>
+        </label>
+
+        <section class="provider-filters" id="providerFilters"></section>
+
+        <button id="rescanBtn" class="btn btn-primary">Rescan Conversations</button>
+
+        <details class="settings-dock" id="settingsDock">
+          <summary>Settings</summary>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Rendering</div>
+            <label class="switch-line">
+              <input id="markdownToggle" type="checkbox" checked />
+              <span>Render markdown</span>
+            </label>
+          </div>
+
+          <div class="settings-section-title">Paths</div>
+
+          <label>
+            Transcript root
+            <div class="path-field-row">
+              <input id="rootInput" type="text" placeholder="Choose transcript root" />
+              <button id="pickRootBtn" class="btn btn-ghost" type="button">Browse</button>
+            </div>
+          </label>
+
+          <label>
+            LM Studio conversations
+            <div class="path-field-row">
+              <input id="lmRootInput" type="text" placeholder="Choose LM Studio conversations folder" />
+              <button id="pickLmRootBtn" class="btn btn-ghost" type="button">Browse</button>
+            </div>
+          </label>
+
+          <button id="saveSettingsBtn" class="btn btn-secondary" type="button">Save Paths</button>
+          <div class="settings-hint" id="settingsHint"></div>
+        </details>
+      </aside>
+
+      <div class="splitter" id="splitterLeft" aria-label="Resize settings and chat list" role="separator"></div>
+
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <span id="sidebarStats">Loading...</span>
+        </div>
+        <div class="chat-list" id="chatList"></div>
+      </aside>
+
+      <div class="splitter" id="splitterRight" aria-label="Resize chat list and transcript" role="separator"></div>
+
+      <section class="chat-panel">
+        <div class="chat-header" id="chatHeader">Select a conversation</div>
+        <div class="chat-scroll" id="chatScroll">
+          <div class="chat-empty">Choose a chat from the sidebar.</div>
+        </div>
+        <div class="chat-footer" id="chatStats">Messages: 0 | Characters: 0 | Words: 0</div>
+      </section>
+    </div>
+
+    <template id="chatItemTemplate">
+      <button class="chat-item" type="button">
+        <img class="provider-icon" alt="provider" />
+        <div class="chat-item-main">
+          <div class="chat-item-title"></div>
+          <div class="chat-item-meta"></div>
+        </div>
+      </button>
+    </template>
+
+    <template id="messageTemplate">
+      <article class="message-row">
+        <img class="author-icon" alt="author" />
+        <div class="message-bubble">
+          <div class="message-content"></div>
+          <div class="message-time"></div>
+        </div>
+      </article>
+    </template>
+
+    <template id="dateSeparatorTemplate">
+      <div class="date-separator"></div>
+    </template>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
