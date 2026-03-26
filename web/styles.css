@@ -254,7 +254,7 @@ body {
   height: 17px;
   object-fit: contain;
   margin-top: 2px;
-  background: rgba(255, 255, 255, 0.93);
+  background: transparent;
   border-radius: 4px;
   padding: 1px;
 }
@@ -385,6 +385,11 @@ body {
   white-space: pre-wrap;
 }
 
+.message-segment.text.plain-text,
+.thinking-text.plain-text {
+  white-space: pre-wrap;
+}
+
 .message-segment p {
   margin: 0 0 8px;
 }
@@ -464,10 +469,32 @@ body {
   background: rgba(0, 0, 0, 0.16);
 }
 
+.tool-block {
+  border: 1px dashed rgba(145, 219, 197, 0.45);
+  border-radius: 10px;
+  padding: 4px 8px;
+  background: rgba(5, 22, 20, 0.35);
+}
+
+.tool-result-block {
+  border-color: rgba(175, 199, 237, 0.45);
+  background: rgba(8, 21, 36, 0.38);
+}
+
 .thinking-block summary {
   cursor: pointer;
   color: #adc6f0;
   font-size: 0.77rem;
+}
+
+.tool-block summary {
+  cursor: pointer;
+  color: #9ce8d0;
+  font-size: 0.77rem;
+}
+
+.tool-result-block summary {
+  color: #b9ccef;
 }
 
 .thinking-text {
@@ -475,6 +502,13 @@ body {
   white-space: normal;
   font-size: 0.82rem;
   color: #d6e3fb;
+}
+
+.tool-text {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  color: #d6fff2;
 }
 
 .message-time {

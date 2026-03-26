@@ -8,9 +8,9 @@ const providerLabel = {
 
 const providerIcons = {
   openai: "/assets/icons/openai.png",
-  anthropic: "/assets/icons/anthropic.svg",
+  anthropic: "/assets/icons/anthropic.png",
   lmstudio: "/assets/icons/lmstudio.png",
-  user: "/assets/icons/user.webp",
+  user: "/assets/icons/user.png",
 };
 
 const state = {
@@ -363,8 +363,122 @@ function normalizedBlocks(msg) {
   return blocks;
 }
 
+function parseToolCallSegment(segment) {
+  if (!segment || !segment.text) return null;
+
+  const blockType = (segment.type || "").toLowerCase();
+  if (blockType === "tool_call") {
+    const name = String(segment.name || "tool").trim() || "tool";
+    return {
+      name,
+      payload: String(segment.text || "").trim(),
+    };
+  }
+
+  if (blockType && blockType !== "text") {
+    return null;
+  }
+
+  const text = String(segment.text || "");
+  const match = text.match(/^\[Tool call:\s*([^\]]+)\]\s*\n?([\s\S]*)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    name: (match[1] || "tool").trim() || "tool",
+    payload: (match[2] || "").trim(),
+  };
+}
+
+function parseToolResultSegment(segment) {
+  if (!segment || !segment.text) return null;
+
+  const blockType = (segment.type || "").toLowerCase();
+  if (blockType === "tool_result") {
+    return {
+      payload: String(segment.text || "").trim(),
+    };
+  }
+
+  if (blockType && blockType !== "text") {
+    return null;
+  }
+
+  const text = String(segment.text || "");
+  const match = text.match(/^\[Tool result\]\s*\n?([\s\S]*)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    payload: (match[1] || "").trim(),
+  };
+}
+
 function appendMessageSegment(contentNode, segment) {
   if (!segment || !segment.text) return false;
+
+  const toolCall = parseToolCallSegment(segment);
+  if (toolCall) {
+    const details = document.createElement("details");
+    details.className = "tool-block message-segment tool";
+    details.open = false;
+
+    const summary = document.createElement("summary");
+    summary.textContent = `Tool: ${toolCall.name}`;
+
+    const pre = document.createElement("pre");
+    pre.className = "tool-text";
+    pre.textContent = toolCall.payload || "No payload.";
+
+    details.appendChild(summary);
+    details.appendChild(pre);
+    contentNode.appendChild(details);
+    return true;
+  }
+
+  const toolResult = parseToolResultSegment(segment);
+  if (toolResult) {
+    const lastEl = contentNode.lastElementChild;
+    if (lastEl && lastEl.tagName === "DETAILS" && lastEl.classList.contains("tool-block") && !lastEl.classList.contains("tool-result-block")) {
+      const hr = document.createElement("hr");
+      hr.style.margin = "8px 0";
+      hr.style.border = "none";
+      hr.style.borderTop = "1px solid var(--line-soft)";
+      
+      const resLabel = document.createElement("div");
+      resLabel.textContent = "Result:";
+      resLabel.style.fontSize = "0.8rem";
+      resLabel.style.color = "var(--muted)";
+      resLabel.style.marginBottom = "4px";
+
+      const pre = document.createElement("pre");
+      pre.className = "tool-text";
+      pre.textContent = toolResult.payload || "No result payload.";
+
+      lastEl.appendChild(hr);
+      lastEl.appendChild(resLabel);
+      lastEl.appendChild(pre);
+      return true;
+    }
+
+    const details = document.createElement("details");
+    details.className = "tool-block tool-result-block message-segment tool";
+    details.open = false;
+
+    const summary = document.createElement("summary");
+    summary.textContent = "Tool result";
+
+    const pre = document.createElement("pre");
+    pre.className = "tool-text";
+    pre.textContent = toolResult.payload || "No result payload.";
+
+    details.appendChild(summary);
+    details.appendChild(pre);
+    contentNode.appendChild(details);
+    return true;
+  }
 
   const type = (segment.type || "text").toLowerCase();
   if (type === "thinking") {
@@ -492,6 +606,8 @@ async function saveSettings() {
 }
 
 async function pickFolder(target) {
+  setHint("Opening folder picker...");
+
   const resp = await fetch("/api/pick-folder", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -500,18 +616,24 @@ async function pickFolder(target) {
 
   if (!resp.ok) {
     const payload = await resp.json().catch(() => ({}));
-    setHint(payload.error || "Could not open folder picker.", true);
+    const details = Array.isArray(payload.details) ? ` (${payload.details.join(" | ")})` : "";
+    setHint(`${payload.error || "Could not open folder picker."}${details}`, true);
     return;
   }
 
   const payload = await resp.json();
-  if (!payload.selected) return;
+  if (!payload.selected) {
+    setHint("No folder selected.");
+    return;
+  }
 
   if (target === "transcript_root") {
     els.rootInput.value = payload.selected;
   } else {
     els.lmRootInput.value = payload.selected;
   }
+
+  setHint("Folder selected. Click Save Paths to persist.");
 }
 
 async function loadConversations(force = false) {

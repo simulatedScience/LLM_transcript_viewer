@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import threading
 import urllib.parse
 import webbrowser
@@ -35,6 +36,58 @@ def _normalize_path_text(value: Any) -> str:
     return str(Path(os.path.expanduser(str(value))).resolve())
 
 
+def _effective_lmstudio_root(configured_root: str) -> Path:
+    configured = Path(os.path.expanduser(configured_root))
+    if configured.exists() and configured.is_dir():
+        return configured
+
+    detected = _detect_default_lmstudio_root()
+    if detected.exists() and detected.is_dir():
+        return detected
+
+    return configured
+
+
+def _pick_folder_windows_powershell(initial: str) -> Tuple[Optional[str], Optional[str]]:
+    initial_safe = initial.replace("'", "''")
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms;"
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;"
+        f"$dialog.SelectedPath = '{initial_safe}';"
+        "$dialog.Description = 'Select folder';"
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {"
+        "  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::UTF8;"
+        "  Write-Output $dialog.SelectedPath"
+        "}"
+    )
+
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+            check=False,
+        )
+    except Exception as exc:
+        return None, f"PowerShell picker failed: {exc}"
+
+    selected = (result.stdout or "").strip()
+    if selected:
+        return selected, None
+    if result.returncode != 0:
+        return None, (result.stderr or "PowerShell picker failed").strip()
+    return None, None
+
+
 @dataclass
 class ViewerSettings:
     transcript_root: str
@@ -46,7 +99,7 @@ class SettingsStore:
         self._lock = threading.Lock()
         self._path = path
         self._settings = ViewerSettings(
-            transcript_root=_normalize_path_text(SCRIPT_DIR.parent),
+            transcript_root=_normalize_path_text(SCRIPT_DIR),
             lmstudio_root=_normalize_path_text(_detect_default_lmstudio_root()),
         )
         self._load()
@@ -775,7 +828,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if lm_root_param:
             lm_root = Path(lm_root_param).expanduser()
         else:
-            lm_root = Path(settings.lmstudio_root)
+            lm_root = _effective_lmstudio_root(settings.lmstudio_root)
 
         if not root.exists() or not root.is_dir():
             self._send_json({"error": "Invalid root folder"}, status=400)
@@ -800,10 +853,11 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _handle_settings_get(self) -> None:
         settings = SETTINGS.get()
+        lm_root = _effective_lmstudio_root(settings.lmstudio_root)
         self._send_json(
             {
                 "transcript_root": settings.transcript_root,
-                "lmstudio_root": settings.lmstudio_root,
+                "lmstudio_root": lm_root.as_posix(),
             }
         )
 
@@ -827,6 +881,9 @@ class AppHandler(BaseHTTPRequestHandler):
         settings = SETTINGS.get()
         initial = settings.transcript_root if target == "transcript_root" else settings.lmstudio_root
 
+        selected = None
+        picker_errors: List[str] = []
+
         try:
             from tkinter import Tk, filedialog
 
@@ -836,7 +893,15 @@ class AppHandler(BaseHTTPRequestHandler):
             selected = filedialog.askdirectory(initialdir=initial or str(Path.home()))
             root.destroy()
         except Exception as exc:
-            self._send_json({"error": f"Unable to open folder picker: {exc}"}, status=500)
+            picker_errors.append(f"tkinter picker failed: {exc}")
+
+        if not selected and os.name == "nt":
+            selected, ps_error = _pick_folder_windows_powershell(initial or str(Path.home()))
+            if ps_error:
+                picker_errors.append(ps_error)
+
+        if not selected and picker_errors:
+            self._send_json({"error": "Unable to open folder picker", "details": picker_errors}, status=500)
             return
 
         if not selected:
